@@ -235,13 +235,16 @@ all_group_rows = race_df[
 # ============================================================
 # SIDEBAR FILTERS
 # ============================================================
-families = sorted(
+
+family_counts = (
     dam_df[family_col]
     .dropna()
     .astype(str)
     .str.strip()
-    .unique()
+    .value_counts()
 )
+
+families = family_counts.index.tolist()
 
 
 if not families:
@@ -254,9 +257,8 @@ st.sidebar.markdown("## FILTERS")
 selected_family = st.sidebar.selectbox(
     "Family",
     families,
+    format_func=lambda family: f"{family} ({family_counts[family]})"
 )
-
-
 # ------------------------------------------------------------
 # TYPE OF RACE
 # ------------------------------------------------------------
