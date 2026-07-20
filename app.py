@@ -235,30 +235,8 @@ all_group_rows = race_df[
 # ============================================================
 # SIDEBAR FILTERS
 # ============================================================
-
-family_counts = (
-    dam_df[family_col]
-    .dropna()
-    .astype(str)
-    .str.strip()
-    .value_counts()
-)
-
-families = family_counts.index.tolist()
-
-
-if not families:
-    st.error("No family names were found in column J.")
-    st.stop()
-
-
 st.sidebar.markdown("## FILTERS")
 
-selected_family = st.sidebar.selectbox(
-    "Family",
-    families,
-    format_func=lambda family: f"{family} ({family_counts[family]})"
-)
 # ------------------------------------------------------------
 # TYPE OF RACE
 # ------------------------------------------------------------
@@ -472,6 +450,134 @@ if selected_distances:
             selected_distances
         )
     ]
+
+
+# ============================================================
+# DYNAMIC FAMILY DROPDOWN
+# ============================================================
+# Total population of each family in the Dam Lines sheet.
+family_counts = (
+    dam_df[family_col]
+    .dropna()
+    .astype(str)
+    .str.strip()
+    .value_counts()
+)
+
+
+# Build a lookup from every name in the dam-line chains
+# to the family or families in which that name appears.
+name_to_families = defaultdict(set)
+
+for _, row in dam_df.iterrows():
+    family_name = str(row[family_col]).strip()
+
+    if not family_name:
+        continue
+
+    for column in chain_cols:
+        name_key = clean_key(row[column])
+
+        if name_key:
+            name_to_families[name_key].add(
+                family_name
+            )
+
+
+# When performance filters are active, count unique matching
+# runners in each family. A race result belongs to a family
+# when either the runner or its dam appears in that family tree.
+matching_runners_by_family = defaultdict(set)
+
+if performance_filters_active:
+
+    for _, row in filtered_race_df.iterrows():
+        horse_key = clean_key(row["Horse"])
+        dam_key = clean_key(row["Dam"])
+
+        matching_families = (
+            name_to_families.get(
+                horse_key,
+                set(),
+            )
+            | name_to_families.get(
+                dam_key,
+                set(),
+            )
+        )
+
+        for family_name in matching_families:
+            if horse_key:
+                matching_runners_by_family[
+                    family_name
+                ].add(horse_key)
+
+
+    # Keep only families with at least one matching runner.
+    # Sort by matching-runner count, then total population,
+    # then alphabetically.
+    families = sorted(
+        matching_runners_by_family.keys(),
+        key=lambda family_name: (
+            -len(
+                matching_runners_by_family[
+                    family_name
+                ]
+            ),
+            -int(
+                family_counts.get(
+                    family_name,
+                    0,
+                )
+            ),
+            family_name.upper(),
+        ),
+    )
+
+else:
+
+    # No performance filters:
+    # show all families, largest population first.
+    families = family_counts.index.tolist()
+
+
+if not families:
+    st.sidebar.warning(
+        "No families match the selected filters."
+    )
+    st.warning(
+        "No families contain runners matching the selected "
+        "Group, placing, sire and distance filters."
+    )
+    st.stop()
+
+
+def family_dropdown_label(family_name):
+    # Show matching-runner count while filters are active.
+    # Otherwise show total family population.
+    if performance_filters_active:
+        matching_count = len(
+            matching_runners_by_family[
+                family_name
+            ]
+        )
+
+        return (
+            f"{family_name} "
+            f"({matching_count} matching)"
+        )
+
+    return (
+        f"{family_name} "
+        f"({int(family_counts[family_name])})"
+    )
+
+
+selected_family = st.sidebar.selectbox(
+    "Family",
+    families,
+    format_func=family_dropdown_label,
+)
 
 
 # ============================================================
