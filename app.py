@@ -224,12 +224,16 @@ race_df["Place_Number"] = race_df["Place"].apply(
 )
 
 
-# Only rows identified as Group 1, Group 2 or Group 3
-all_group_rows = race_df[
-    race_df["Group_Level"].isin(
-        ["Group 1", "Group 2", "Group 3"]
-    )
-].copy()
+# All race types found in the Race Results sheet.
+# The original Race_Type spelling is preserved for filtering.
+available_race_types = sorted(
+    [
+        value
+        for value in race_df["Race_Type"].unique()
+        if str(value).strip()
+    ],
+    key=lambda value: str(value).upper(),
+)
 
 
 # ============================================================
@@ -242,32 +246,12 @@ st.sidebar.markdown("## FILTERS")
 # ------------------------------------------------------------
 st.sidebar.markdown("### Type of Race")
 
-show_group_1 = st.sidebar.checkbox(
-    "Group 1",
-    value=False,
+selected_race_types = st.sidebar.multiselect(
+    "Race type",
+    available_race_types,
+    default=[],
+    placeholder="All race types",
 )
-
-show_group_2 = st.sidebar.checkbox(
-    "Group 2",
-    value=False,
-)
-
-show_group_3 = st.sidebar.checkbox(
-    "Group 3",
-    value=False,
-)
-
-
-selected_race_types = []
-
-if show_group_1:
-    selected_race_types.append("Group 1")
-
-if show_group_2:
-    selected_race_types.append("Group 2")
-
-if show_group_3:
-    selected_race_types.append("Group 3")
 
 
 # ------------------------------------------------------------
@@ -292,7 +276,7 @@ placing_filter = st.sidebar.radio(
 available_sires = sorted(
     [
         value
-        for value in all_group_rows["Sire"].unique()
+        for value in race_df["Sire"].unique()
         if str(value).strip()
     ],
     key=lambda value: str(value).upper(),
@@ -313,7 +297,7 @@ selected_sires = st.sidebar.multiselect(
 available_distances = sorted(
     [
         value
-        for value in all_group_rows["Distance"].unique()
+        for value in race_df["Distance"].unique()
         if str(value).strip()
     ],
     key=distance_sort_key,
@@ -410,14 +394,13 @@ performance_filters_active = any(
 # ============================================================
 # FILTER RACE RESULTS
 # ============================================================
-filtered_race_df = all_group_rows.copy()
+filtered_race_df = race_df.copy()
 
 
-# If no Group checkbox is selected but another filter is active,
-# use all three Group levels.
+# When no race type is selected, all race types remain included.
 if selected_race_types:
     filtered_race_df = filtered_race_df[
-        filtered_race_df["Group_Level"].isin(
+        filtered_race_df["Race_Type"].isin(
             selected_race_types
         )
     ]
@@ -547,7 +530,7 @@ if not families:
     )
     st.warning(
         "No families contain runners matching the selected "
-        "Group, placing, sire and distance filters."
+        "race type, placing, sire and distance filters."
     )
     st.stop()
 
@@ -1070,15 +1053,15 @@ with summary_col_1:
 
 with summary_col_2:
     if performance_filters_active:
-        active_group_text = (
+        active_race_type_text = (
             ", ".join(selected_race_types)
             if selected_race_types
-            else "Group 1, Group 2 and Group 3"
+            else "All race types"
         )
 
         st.metric(
-            "Race levels searched",
-            active_group_text,
+            "Race types searched",
+            active_race_type_text,
         )
     else:
         st.metric(
